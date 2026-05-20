@@ -13,8 +13,6 @@ pipeline {
         RESOURCE_GROUP = "hotel-menu-group-us"
 
         CONTAINER_APP = "hotel-menu-container-app"
-
-        CONTAINER_ENV = "hotel-menu-env"
     }
 
     stages {
@@ -57,7 +55,7 @@ pipeline {
             }
         }
 
-        stage('Create Docker Buildx Builder') {
+        stage('Create Buildx Builder') {
 
             steps {
 
@@ -68,13 +66,13 @@ pipeline {
             }
         }
 
-        stage('Build and Push AMD64 Docker Image') {
+        stage('Build and Push Multi-Platform Docker Image') {
 
             steps {
 
                 sh '''
                 docker buildx build \
-                --platform linux/amd64 \
+                --platform linux/amd64,linux/arm64 \
                 -t $IMAGE_NAME \
                 ./backend \
                 --push
@@ -92,7 +90,7 @@ pipeline {
             }
         }
 
-        stage('Stop Old Docker Container') {
+        stage('Stop Old Container') {
 
             steps {
 
@@ -169,12 +167,12 @@ pipeline {
 
         success {
 
-            echo 'SUCCESS: Hotel Menu DevOps Pipeline Completed'
+            echo 'SUCCESS: Hotel Menu Pipeline Completed'
         }
 
         failure {
 
-            echo 'FAILED: Pipeline Error Occurred'
+            echo 'FAILED: Pipeline Error'
         }
 
         always {
