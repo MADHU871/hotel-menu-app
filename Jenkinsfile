@@ -3,24 +3,40 @@ pipeline {
     agent any
 
     environment {
+
+        PATH = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+
         IMAGE_NAME = "mad0008271/hotel-menu-backend"
+
         CONTAINER_NAME = "hotel-menu-container"
+
+        RESOURCE_GROUP = "hotel-menu-group-us"
+
+        CONTAINER_APP = "hotel-menu-container-app"
+
+        CONTAINER_ENV = "hotel-menu-env"
     }
 
     stages {
 
         stage('Clone GitHub Repo') {
+
             steps {
 
                 git branch: 'main',
                 url: 'https://github.com/MADHU871/hotel-menu-app.git'
-
             }
         }
 
-        stage('Docker Version') {
+        stage('Check Docker Version') {
+
             steps {
-                sh 'docker --version'
+
+                sh '''
+                which docker
+                docker --version
+                docker buildx version
+                '''
             }
         }
 
@@ -41,22 +57,27 @@ pipeline {
             }
         }
 
-        stage('Build Docker Image') {
+        stage('Create Docker Buildx Builder') {
 
             steps {
 
                 sh '''
-                docker build -t $IMAGE_NAME ./backend
+                docker buildx create --use --name multi-builder || true
+                docker buildx inspect --bootstrap
                 '''
             }
         }
 
-        stage('Docker Push') {
+        stage('Build and Push AMD64 Docker Image') {
 
             steps {
 
                 sh '''
-                docker push $IMAGE_NAME
+                docker buildx build \
+                --platform linux/amd64 \
+                -t $IMAGE_NAME \
+                ./backend \
+                --push
                 '''
             }
         }
@@ -71,7 +92,7 @@ pipeline {
             }
         }
 
-        stage('Docker Stop Old Container') {
+        stage('Stop Old Docker Container') {
 
             steps {
 
@@ -82,7 +103,7 @@ pipeline {
             }
         }
 
-        stage('Docker Run Container') {
+        stage('Run Docker Container') {
 
             steps {
 
@@ -106,25 +127,38 @@ pipeline {
             }
         }
 
-        stage('Azure Login') {
+        stage('Azure Login Check') {
 
             steps {
 
                 sh '''
-                az login
+                az account show
                 '''
             }
         }
 
-        stage('Azure Deploy') {
+        stage('Azure Container App Deploy') {
 
             steps {
 
                 sh '''
-                az webapp config container set \
-                --name hotel-menu-app-2026 \
-                --resource-group hotel-menu-group \
-                --docker-custom-image-name $IMAGE_NAME
+                az containerapp update \
+                --name $CONTAINER_APP \
+                --resource-group $RESOURCE_GROUP \
+                --image $IMAGE_NAME
+                '''
+            }
+        }
+
+        stage('Get Azure URL') {
+
+            steps {
+
+                sh '''
+                az containerapp show \
+                --name $CONTAINER_APP \
+                --resource-group $RESOURCE_GROUP \
+                --query properties.configuration.ingress.fqdn
                 '''
             }
         }
@@ -135,12 +169,19 @@ pipeline {
 
         success {
 
-            echo 'Pipeline Successfully Completed'
+            echo 'SUCCESS: Hotel Menu DevOps Pipeline Completed'
         }
 
         failure {
 
-            echo 'Pipeline Failed'
+            echo 'FAILED: Pipeline Error Occurred'
+        }
+
+        always {
+
+            sh '''
+            docker ps
+            '''
         }
     }
 }
